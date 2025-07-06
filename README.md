@@ -14,7 +14,6 @@ data_process.py ABIDE_download.py
 
 #### 🔹 Step 2: Pretraining on Source Domains
 
-
 Trains a baseline model on aggregated source domains for initialization. Contains the architecture of the baseline network used for initial training.
 
 baseline_train.py  baseline_model.py
@@ -27,17 +26,15 @@ source_train.py source_model.py
 
 **3.2 **Computes the similarity between different domains (e.g., feature distance) to guide prompt transfer.
 
-similarity1_16.py, similarity2_16.py
+similarity1_16.py, similarity2_16.py KnowledgeDistillation.py
 
 #### 🔹 Step 4: Target Domain Adaptation
 
-
 Performs adaptation in the target domain using few-shot prompt tuning. Defines the model architecture used for target-domain adaptation.
 
-target_train.py target_model.py
+target_train.py source_model.py baseline_model.py
 
 ### 🔹 Entry Point and Configuration
-
 
 Main entry point to run training and evaluation across different stages.Stores all configurable parameters, including training hyperparameters, dataset paths, and experiment settings.
 

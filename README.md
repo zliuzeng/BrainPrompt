@@ -18,21 +18,25 @@ Trains a baseline model on aggregated source domains for initialization. Contain
 
 baseline_train.py  baseline_model.py
 
-#### 🔹 Step 3: Source Domain Learning and Similarity Computation
+#### 🔹 Step 3: Source prompts Learning
 
-**3.1 **Trains the prompt-based model on selected source domains. Defines the prompt-based model structure used in source domain learning.
+**3.1 Training Source Mask Prompts**
 
-source_train.py source_model.py
+source_train1.py source_model1.py
 
-**3.2 **Computes the similarity between different domains (e.g., feature distance) to guide prompt transfer.
+**3.2 Computing Domain Similarity Scores and Integrating Mask Prompts**
 
-similarity1_16.py, similarity2_16.py KnowledgeDistillation.py
+similarity1_16.py/similarity2_16.py KnowledgeDistillation1.py/KnowledgeDistillation2.py
+
+**3.3 Training Source Domain Embeddings**
+
+source_train2.py source_model2.py
 
 #### 🔹 Step 4: Target Domain Adaptation
 
 Performs adaptation in the target domain using few-shot prompt tuning. Defines the model architecture used for target-domain adaptation.
 
-target_train.py source_model.py baseline_model.py
+target_train.py target_model.py
 
 ### 🔹 Entry Point and Configuration
 

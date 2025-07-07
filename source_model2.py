@@ -5,8 +5,6 @@ import math, copy
 from torch.autograd import Variable
 import warnings
 warnings.filterwarnings("ignore")
-
-
 def clones(module, N):
     "Produce N identical layers."
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
@@ -16,11 +14,11 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.layers = clones(layer, N)
         self.norm = LayerNorm(layer.size)
-    def forward(self, x,  mask):
+    def forward(self, x,  mask,W_A,W_B,W_C,W_D,W_E,W_F):
         "Pass the input (and mask) through each layer in turn."
         #loss = 0
         for i, layer in enumerate(self.layers):
-            x = layer(x,  mask)
+            x = layer(x,  mask,W_A,W_B,W_C,W_D,W_E,W_F)
         return self.norm(x)
 class LayerNorm(nn.Module):
     "Construct a layernorm module (See citation for details)."
@@ -54,8 +52,8 @@ class EncoderLayer(nn.Module):
         self.sublayer = clones(SublayerConnection(size, dropout), 2)
         self.sublayer2 = clones(SublayerConnection(size2, dropout), 1)
         self.size = size
-    def forward(self, x,mask):
-        x = self.sublayer[0](x,lambda x: self.self_attn1(x, x, x,  mask))
+    def forward(self, x,mask,W_A,W_B,W_C,W_D,W_E,W_F):
+        x = self.sublayer[0](x,lambda x: self.self_attn1(x, x, x,  mask,W_A,W_B,W_C,W_D,W_E,W_F))
         return self.sublayer[1](x,  self.feed_forward)
 def attention(query, key, value,device,mask=None):
     "Compute 'Scaled Dot Product Attention'"
@@ -80,7 +78,7 @@ class MultiHeadedAttention(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.ELU = nn.ELU()
         self.device=device
-    def forward(self, query, key, value,mask=None):
+    def forward(self, query, key, value,mask, W_A,W_B,W_C,W_D,W_E,W_F):
         if mask is not None:
             #Same mask applied to all h heads.
             mask = mask.unsqueeze(1).expand(-1,self.h, -1,-1)
@@ -88,9 +86,9 @@ class MultiHeadedAttention(nn.Module):
         # 1) Do all the linear projections in batch from d_model => h x d_k
         # query, key, value = [l(x).view(nbatches, -1, self.h, 128 * self.h).transpose(1, 2) for l, x in
         #                      zip(self.linears, (query, key, value))]
-        queries = self.linears[0](query)
-        keys = self.linears[1](key)
-        values = self.linears[2](value)
+        queries = self.linears[0](query) + query @ (W_A @ W_B)
+        keys = self.linears[1](key) + key @ (W_C @ W_D)
+        values = self.linears[2](value) + value @ (W_E @ W_F)
         queries = queries.reshape([nbatches, self.h, -1, 128])
         keys = keys.reshape([nbatches, self.h, -1, 128])
         values = values.reshape([nbatches, self.h, -1, 128])
@@ -125,6 +123,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         x = x + Variable(self.pe[:, :x.size(1)], requires_grad=False)
         return self.dropout(x)
+
 class EncoderDecoder(nn.Module):
     """
     A standard Encoder-Decoder architecture. Base for this and many
@@ -138,22 +137,37 @@ class EncoderDecoder(nn.Module):
             nn.Linear(6670, 64),
             nn.Dropout(0.5),
             nn.ReLU(),
-              # 512，2
         )
         self.fc1=nn.Linear(64, 2)
 
-    def encode(self, src,  src_mask):
-        return self.encoder(self.src_embed(src),  src_mask)
+        self.W_A = nn.Parameter(torch.empty(6670, 3))  # LoRA权重A
+        self.W_B = nn.Parameter(torch.empty(3, 128 * 2))  # LoRA权重B初始化LoRA权重
+        nn.init.kaiming_uniform_(self.W_A, a=math.sqrt(5))
+        nn.init.zeros_(self.W_B)
+
+        self.W_C = nn.Parameter(torch.empty(6670, 3))  # LoRA权重A
+        self.W_D = nn.Parameter(torch.empty(3, 128 * 2))  # LoRA权重B初始化LoRA权重
+        nn.init.kaiming_uniform_(self.W_A, a=math.sqrt(5))
+        nn.init.zeros_(self.W_B)
+
+        self.W_E = nn.Parameter(torch.empty(6670, 3))  # LoRA权重A
+        self.W_F = nn.Parameter(torch.empty(3, 128 * 2))  # LoRA权重B初始化LoRA权重
+        nn.init.kaiming_uniform_(self.W_A, a=math.sqrt(5))
+        nn.init.zeros_(self.W_B)
+
+
+    def encode(self, src,  src_mask,W_A,W_B,W_C,W_D,W_E,W_F):
+        return self.encoder(self.src_embed(src),  src_mask,W_A,W_B,W_C,W_D,W_E,W_F)
+
 
     def forward(self, src,src_mask):
-        "Take in and process masked src and target sequences."
+        # src = prompt.add(src)
+        #"Take in and process masked src and target sequences."
+        src = self.encode(src, src_mask,self.W_A,self.W_B,self.W_C,self.W_D,self.W_E,self.W_F)
 
-        src = self.encode(src, src_mask)
-        src = (torch.sum(src, dim=1) / src.size(1)).squeeze()  # torch.Size([16, 256])
-        src = self.fc(src)  # 32, 2
-        src = self.fc1(src)
-
+        src = (torch.sum(src, dim=1) / src.size(1)).squeeze()  # torch.Size([16,6670])
+        src0 = self.fc(src)
+        src = self.fc1(src0)
 
         return src
-
 

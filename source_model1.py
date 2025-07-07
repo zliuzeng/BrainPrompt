@@ -142,18 +142,39 @@ class EncoderDecoder(nn.Module):
         )
         self.fc1=nn.Linear(64, 2)
 
+        self.w = nn.Parameter(torch.FloatTensor(116, 116), requires_grad=True)
+        torch.nn.init.uniform_(self.w, a=0, b=1)
+        self.bn2 = nn.BatchNorm1d(116, affine=True)
     def encode(self, src,  src_mask):
         return self.encoder(self.src_embed(src),  src_mask)
 
+    def w_upper_triangle_values(self,w):
+        # 获取上三角部分的索引
+        row_indices, col_indices = torch.triu_indices(w.size(0), w.size(1), offset=1)
+        # 提取上三角部分的值
+        upper_triangle_values = w[row_indices, col_indices]
+        # 将上三角部分的值转换为一个向量
+        vector = upper_triangle_values.view(-1)
+        # 将向量转换为大小为 [1, 6670] 的矩阵
+        result_matrix = vector.view(1, -1)
+        return result_matrix
+
     def forward(self, src,src_mask):
         "Take in and process masked src and target sequences."
+
+        w = 10 * (self.w)
+        w = F.relu(self.bn2(w))
+        w = (w + w.T) / 2
+        l1 = torch.norm(w, p=1, dim=1).mean()
+        result_matrix = self.w_upper_triangle_values(w)
+
+        src = result_matrix * src
 
         src = self.encode(src, src_mask)
         src = (torch.sum(src, dim=1) / src.size(1)).squeeze()  # torch.Size([16, 256])
         src = self.fc(src)  # 32, 2
         src = self.fc1(src)
 
-
-        return src
+        return src,0.3*l1
 
 
